@@ -74,6 +74,7 @@ function viewAdd(){
     <input id="amt" class="amt" type="number" inputmode="decimal" placeholder="0 ₽" step="0.01">
     <input id="ccat" type="text" list="cl" placeholder="Что купил (категория)" style="margin-top:12px" autocomplete="off">
     <datalist id="cl">${[...new Set(S.expenses.map(e=>e.cat).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+    ${(()=>{const n={};S.expenses.forEach(e=>{if(e.cat)n[e.cat]=(n[e.cat]||0)+1});const l=Object.entries(n).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);return l.length?`<div class="chips" style="margin-top:10px">${l.map(c=>`<button class="chip" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</div>`:''})()}
     <button class="main" id="save">Записать</button>
   </div>
   <div style="color:var(--mut);text-align:center">Сегодня потрачено: <b>${money(today)}</b></div>`;
@@ -105,6 +106,7 @@ document.addEventListener('click',ev=>{
   if(d.t){tab=d.t;render();scrollTo(0,0)}
   else if(d.per){per=d.per;render()}
   else if(d.del){S.expenses=S.expenses.filter(e=>e.id!==+d.del);save();render();toast('Удалено')}
+  else if(d.pick!==undefined){$('#ccat').value=d.pick}
   else if(t.id==='save')doSave();
 });
 
