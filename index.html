@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Траты</title>
+<style>
+:root{--bg:#f2f4f7;--card:#fff;--ink:#13181f;--mut:#667085;--acc:#0f766e;--accbg:#d9f0ec;--line:#dde2e9;--bad:#c2410c;color-scheme:light dark;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1216;--card:#182027;--ink:#eef2f6;--mut:#97a3b2;--acc:#2dd4bf;--accbg:#123a37;--line:#27323c;--bad:#fb923c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,"Helvetica Neue",Arial,sans-serif;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+main{max-width:520px;margin:0 auto;padding:16px}
+h2{font-size:20px;margin:6px 0 12px}
+h3{font-size:15px;margin:18px 0 8px;color:var(--mut);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+input[type=text],input[type=number]{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.amt{font-size:34px;font-weight:700;text-align:center;padding:14px}
+label.f{display:block;font-size:14px;color:var(--mut);margin:14px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 14px;border-radius:20px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
+.chip.on{background:var(--accbg);border-color:var(--acc);color:var(--acc);font-weight:600}
+button.main{width:100%;margin-top:16px;padding:15px;border:0;border-radius:12px;background:var(--acc);color:var(--bg);font:600 17px inherit;font-family:inherit;cursor:pointer}
+button.small{border:0;background:none;color:var(--bad);font:inherit;padding:6px;cursor:pointer}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border:0}
+.row small{color:var(--mut);display:block}
+.big{font-size:30px;font-weight:700}
+.bar{height:6px;border-radius:3px;background:var(--accbg);margin-top:5px}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--acc)}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;padding:9px 0;border:0;border-radius:9px;background:none;color:var(--ink);font:inherit;cursor:pointer}
+.seg button.on{background:var(--acc);color:var(--bg);font-weight:600}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;padding:14px 0;border:0;background:none;color:var(--mut);font:inherit;font-size:15px;cursor:pointer}
+nav button.on{color:var(--acc);font-weight:700}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:20px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div class="toast" id="toast"></div>
+<nav>
+  <button data-t="add">Записать</button>
+  <button data-t="sum">Итоги</button>
+</nav>
+<script>
+const PER={day:'День',week:'Неделя',month:'Месяц',year:'Год'};
+let S={expenses:[]};
+try{const r=localStorage.getItem('exp-solo');if(r)S=JSON.parse(r);
+  if(!r){const old=JSON.parse(localStorage.getItem('exp1')||'null');if(old&&old.expenses)S.expenses=old.expenses.map(e=>({id:e.id,amount:e.amount,cat:e.cat,ts:e.ts}))}}catch(e){}
+function save(){try{localStorage.setItem('exp-solo',JSON.stringify(S))}catch(e){}}
+let tab='add',per='month';
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=k=>{const s=(k/100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,'\u00a0');return(s.endsWith('.00')?s.slice(0,-3):s)+'\u00a0₽'};
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}
+function plural(n){const m=n%10,c=n%100;return c>10&&c<20?'трат':m===1?'трата':m>1&&m<5?'траты':'трат'}
+function since(p){
+  const d=new Date();d.setHours(0,0,0,0);
+  if(p==='week')d.setDate(d.getDate()-6);
+  if(p==='month')d.setDate(1);
+  if(p==='year'){d.setMonth(0);d.setDate(1)}
+  return d.getTime();
+}
+
+function viewAdd(){
+  const today=S.expenses.filter(e=>e.ts>=since('day')).reduce((s,e)=>s+e.amount,0);
+  return `<h2>Новая трата</h2>
+  <div class="card">
+    <input id="amt" class="amt" type="number" inputmode="decimal" placeholder="0 ₽" step="0.01">
+    <input id="ccat" type="text" list="cl" placeholder="Что купил (категория)" style="margin-top:12px" autocomplete="off">
+    <datalist id="cl">${[...new Set(S.expenses.map(e=>e.cat).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+    <button class="main" id="save">Записать</button>
+  </div>
+  <div style="color:var(--mut);text-align:center">Сегодня потрачено: <b>${money(today)}</b></div>`;
+}
+
+function viewSum(){
+  const from=since(per);
+  const ex=S.expenses.filter(e=>e.ts>=from).sort((a,b)=>b.ts-a.ts);
+  const total=ex.reduce((s,e)=>s+e.amount,0);
+  const byCat={};ex.forEach(e=>{const k=e.cat||'Без категории';byCat[k]=(byCat[k]||0)+e.amount});
+  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  let h=`<h2>Итоги</h2><div class="seg">${Object.entries(PER).map(([k,v])=>`<button data-per="${k}" class="${k===per?'on':''}">${v}</button>`).join('')}</div>`;
+  h+=`<div class="card"><div class="big">${money(total)}</div><div style="color:var(--mut)">${ex.length?ex.length+' '+plural(ex.length):'Трат за этот период нет'}</div></div>`;
+  if(ex.length){
+    h+=`<h3>По категориям</h3><div class="card">${cats.map(([c,s])=>`<div style="padding:8px 0"><div style="display:flex;justify-content:space-between"><span>${esc(c)}</span><b>${money(s)}</b></div><div class="bar"><i style="width:${Math.round(s/total*100)}%"></i></div></div>`).join('')}</div>`;
+    h+=`<h3>История</h3><div class="card">${ex.map(e=>`<div class="row"><div>${esc(e.cat||'Без категории')}<small>${new Date(e.ts).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}, ${new Date(e.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</small></div><div style="text-align:right"><b>${money(e.amount)}</b><button class="small" data-del="${e.id}">Удалить</button></div></div>`).join('')}</div>`;
+  }
+  return h;
+}
+
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
+  $('#app').innerHTML=tab==='add'?viewAdd():viewSum();
+}
+
+document.addEventListener('click',ev=>{
+  const t=ev.target.closest('button');if(!t)return;
+  const d=t.dataset;
+  if(d.t){tab=d.t;render();scrollTo(0,0)}
+  else if(d.per){per=d.per;render()}
+  else if(d.del){S.expenses=S.expenses.filter(e=>e.id!==+d.del);save();render();toast('Удалено')}
+  else if(t.id==='save')doSave();
+});
+
+function doSave(){
+  const kop=Math.round(parseFloat($('#amt').value.replace(',','.'))*100);
+  if(!kop||kop<=0){toast('Введи сумму');return}
+  let c=$('#ccat').value.trim().slice(0,40);
+  if(c)c=c[0].toUpperCase()+c.slice(1).toLowerCase();
+  S.expenses.push({id:Date.now(),amount:kop,cat:c,ts:Date.now()});
+  save();toast('Записано: '+money(kop));render();
+}
+render();
+</script>
+</body>
+</html>
